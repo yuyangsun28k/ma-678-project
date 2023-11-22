@@ -1,0 +1,92 @@
+---
+title: "ma678 project"
+author: "thomas"
+date: "2023-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r, echo= FALSE}
+library(ggplot2)
+library(lme4)
+```
+
+
+```{r, echo=FALSE}
+# Load Datasets
+bank <- read.csv("/Users/thomas/Downloads/ma678/midterm project/datasets/bank-full.csv" , sep = ";", header = TRUE)
+bank <- as.data.frame(bank)
+bank$y <- ifelse(bank$y == "yes", 1, 0)
+bank$loan <- ifelse(bank$loan == "yes", 1, 0)
+bank$default <- ifelse(bank$default == "yes", 1, 0)
+bank$housing <- ifelse(bank$housing == "yes", 1, 0)
+head(bank)
+```
+
+
+
+```{r, echo=FALSE}
+# Balance vs. Age
+ggplot(bank, aes(x = age, y = balance)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "Balance grouped by Age",
+       x = "Age",
+       y = "Balance")
+
+# loan, housing
+# Bar Plot for Housing Loan
+table_housing <- table(bank$housing)
+barplot(table_housing, main = "Bar Plot of Housing Loan", xlab = "Housing Loan", ylab = "Frequency")
+# Bar Plot for Personal Loan
+table_loan <- table(bank$loan)
+barplot(table_loan, main = "Bar Plot of Personal Loan", xlab = "Personal Loan", ylab = "Frequency")
+
+# Histogram for Campaign
+hist(bank$campaign, main = "Histogram of Campaign Contacts", xlab = "Number of Contacts")
+
+table_y <- table(bank$y)
+barplot(table_y, main = "Bar Plot of People Subscribed Time Deposit", xlab ="Time Deposit" )
+```
+
+```{r}
+# Simple logistic regression with one predictor
+simple_model <- glm(y ~ age, data = bank, family = binomial)
+summary(simple_model)
+
+# Plotting
+library(ggplot2)
+ggplot(bank, aes(x = age, y = y)) + geom_point() + stat_smooth(method = "glm", method.args = list(family = "binomial"))
+
+```
+
+
+```{r}
+# Convert categorical variables to factors if they are not already
+bank$education <- as.factor(bank$education)
+bank$marital <- as.factor(bank$marital)
+bank$loan <- as.factor(bank$loan)
+bank$housing <- as.factor(bank$housing)
+
+# Build the model
+# Replace 'cluster_var' with your actual clustering variable
+model <- glmer(y ~ age + education + marital + balance + loan + housing + (1 | duration), 
+               data = bank, 
+               family = binomial)
+
+# View the model summary
+summary(model)
+```
+
+```{r}
+
+```
+```{r}
+
+```
+
