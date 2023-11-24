@@ -1,6 +1,6 @@
 ---
 title: "ma678 project"
-author: "thomas"
+author: "Yuyang Sun"
 date: "2023-11-17"
 output: html_document
 ---
@@ -9,27 +9,43 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
-
+## Library
 ```{r, echo= FALSE}
 library(ggplot2)
 library(lme4)
+library(dplyr)
+library(caret)
 ```
 
-
+## Load Data
 ```{r, echo=FALSE}
-# Load Datasets
+# Load Data
 bank <- read.csv("/Users/thomas/Downloads/ma678/midterm project/datasets/bank-full.csv" , sep = ";", header = TRUE)
-bank <- as.data.frame(bank)
-bank$y <- ifelse(bank$y == "yes", 1, 0)
-bank$loan <- ifelse(bank$loan == "yes", 1, 0)
+
+# Convert binary variables to 0 and 1
 bank$default <- ifelse(bank$default == "yes", 1, 0)
 bank$housing <- ifelse(bank$housing == "yes", 1, 0)
+bank$loan <- ifelse(bank$loan == "yes", 1, 0)
+bank$y <- ifelse(bank$y == "yes", 1, 0)
+
+# Convert categorical variables to dummy variables
+bank <- bank %>% 
+  mutate(across(.cols = c(job, marital, education, contact, poutcome), .fns = as.factor)) %>%
+  mutate(across(.cols = c(day, month), .fns = as.factor)) %>%
+  mutate(across(.cols = c(age, balance, duration, campaign, pdays, previous), .fns = as.numeric)) %>%
+  mutate(day = as.numeric(as.factor(day)), month = as.numeric(as.factor(month)))
+
 head(bank)
 ```
 
-
-
+## Check binary predictors
+```{r, echo=FALSE}
+table(bank$y)
+table(bank$loan)
+table(bank$default)
+table(bank$housing)
+```
+## Overview
 ```{r, echo=FALSE}
 # Balance vs. Age
 ggplot(bank, aes(x = age, y = balance)) +
@@ -38,34 +54,49 @@ ggplot(bank, aes(x = age, y = balance)) +
   labs(title = "Balance grouped by Age",
        x = "Age",
        y = "Balance")
-
-# loan, housing
-# Bar Plot for Housing Loan
-table_housing <- table(bank$housing)
-barplot(table_housing, main = "Bar Plot of Housing Loan", xlab = "Housing Loan", ylab = "Frequency")
-# Bar Plot for Personal Loan
-table_loan <- table(bank$loan)
-barplot(table_loan, main = "Bar Plot of Personal Loan", xlab = "Personal Loan", ylab = "Frequency")
+# Balance vs. default
+ggplot(bank, aes(x = default, y = mean(balance))) + 
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "Balance grouped by Age",
+       x = "Age",
+       y = "Balance")
 
 # Histogram for Campaign
-hist(bank$campaign, main = "Histogram of Campaign Contacts", xlab = "Number of Contacts")
+hist(bank$campaign, main = "Histogram of Campaign Contacts", xlab = "Number of Contacts", xlim = c(0,40))
 
-table_y <- table(bank$y)
-barplot(table_y, main = "Bar Plot of People Subscribed Time Deposit", xlab ="Time Deposit" )
 ```
 
+## Logistic Regression
 ```{r}
-# Simple logistic regression with one predictor
-simple_model <- glm(y ~ age, data = bank, family = binomial)
-summary(simple_model)
+# Splitting data into training and test sets
+set.seed(55)
+training_rows <- createDataPartition(bank$y, p = 0.7, list = FALSE)
+train_data <- bank[training_rows, ]
+test_data <- bank[-training_rows, ]
 
-# Plotting
-library(ggplot2)
-ggplot(bank, aes(x = age, y = y)) + geom_point() + stat_smooth(method = "glm", method.args = list(family = "binomial"))
+# Build logistic regression model
+model <- glm(y ~ ., data = train_data, family = binomial)
+summary(model)
 
+# Make predictions on the test set
+predictions <- predict(model, newdata = test_data, type = "response")
+
+# Convert predictions to binary format
+predicted_class <- ifelse(predictions > 0.5, 1, 0)
+
+# Confusion matrix and accuracy
+confusionMatrix <- confusionMatrix(factor(predicted_class), factor(test_data$y))
+print(confusionMatrix)
+
+# ROC and AUC
+library(pROC)
+roc_result <- roc(test_data$y, predictions)
+auc(roc_result)
+plot(roc_result)
 ```
 
-
+## Multilevel regression
 ```{r}
 # Convert categorical variables to factors if they are not already
 bank$education <- as.factor(bank$education)
@@ -86,7 +117,7 @@ summary(model)
 ```{r}
 
 ```
+
 ```{r}
 
 ```
-
