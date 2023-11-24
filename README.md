@@ -10,7 +10,17 @@ In this project, the goal is to generate an EDA report on a Portuguese banking i
 
 # Datasets
 
-Data source: <https://archive.ics.uci.edu/dataset/222/bank+marketing>
+Data source: <https://archive.ics.uci.edu/dataset/222/bank+marketing> [Moro et al., 2011] S. Moro, R. Laureano and P. Cortez. Using Data Mining for Bank Direct Marketing: An Application of the CRISP-DM Methodology.
+
+[pdf] <http://hdl.handle.net/1822/14838>
+
+[bib] <http://www3.dsi.uminho.pt/pcortez/bib/2011-esm-1.txt>
+
+The data for this project comes from a Portuguese retail bank, from May 2008 to November 2010 (Number of Instances: 45211).
+
+The data is used for direct marketing campaigns, based on phone calls. In order to determine whether or not a client would subscribe to the bank term deposit, it was often necessary to contact them more than once.
+
+The data is unbalanced, around 12.38% records are related with success(subscription of time deposit).
 
 Literature review: <https://www.sciencedirect.com/science/article/pii/S016792361400061X?via=ihub> <https://www.joiv.org/index.php/joiv/article/view/68/48> <https://www.sciencedirect.com/science/article/pii/S0360835222008622>
 
@@ -21,7 +31,7 @@ This document outlines the variables used in the dataset. Each variable is descr
 ## Variable Descriptions
 
 | Variable      | Type        | Description                                                                                | Additional Notes                                                                                                                                                      |
-|---------------|---------------|------------------|------------------------|
+|---------------|-------------|--------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `age`         | Integer     | Age of the client                                                                          | \-                                                                                                                                                                    |
 | `job`         | Categorical | Occupation type of the client                                                              | Options: 'admin.', 'blue-collar', 'entrepreneur', 'housemaid', 'management', 'retired', 'self-employed', 'services', 'student', 'technician', 'unemployed', 'unknown' |
 | `marital`     | Categorical | Marital status of the client                                                               | Options: 'divorced', 'married', 'single', 'unknown'. Note: 'divorced' means divorced or widowed.                                                                      |
