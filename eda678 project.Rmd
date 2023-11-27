@@ -15,9 +15,12 @@ library(ggplot2)
 library(lme4)
 library(dplyr)
 library(caret)
+library(corrplot)
+library(pROC)
 ```
 
 ## Load Data
+
 ```{r, echo=FALSE}
 # Load Data
 bank <- read.csv("/Users/thomas/Downloads/ma678/midterm project/datasets/bank-full.csv" , sep = ";", header = TRUE)
@@ -38,14 +41,18 @@ bank <- bank %>%
 head(bank)
 ```
 
-## Check binary predictors
+## Initital Setup
+
+### Check NA's
+
 ```{r, echo=FALSE}
-table(bank$y)
-table(bank$loan)
-table(bank$default)
-table(bank$housing)
+# Number of NA values for each variable
+na_counts <- sapply(bank, function(x) sum(is.na(x)))
+print(na_counts)
 ```
-## Overview
+
+### Balance vs. Age
+
 ```{r, echo=FALSE}
 # Balance vs. Age
 ggplot(bank, aes(x = age, y = balance)) +
@@ -54,20 +61,121 @@ ggplot(bank, aes(x = age, y = balance)) +
   labs(title = "Balance grouped by Age",
        x = "Age",
        y = "Balance")
-# Balance vs. default
-ggplot(bank, aes(x = default, y = mean(balance))) + 
+
+```
+#### Cut the age into subgroups
+
+```{r, echo=FALSE}
+bank_cutage <- bank
+bank_cutage$age_group <- cut(bank_cutage$age, 
+                      breaks = c(-Inf, 24, 60, Inf), 
+                      labels = c("0-24", "25-60", "60+"),
+                      right = TRUE)
+
+head(bank_cutage)
+table(bank_cutage$age_group)
+```
+
+
+
+
+### Balance vs. Duration
+
+```{r,warning=FALSE, echo=FALSE}
+ggplot(bank, aes(x = duration, y = balance)) +
   geom_bar(stat = "identity") +
-  theme_minimal() +
-  labs(title = "Balance grouped by Age",
-       x = "Age",
+  theme_minimal() +  
+  xlim(0,2000) +
+  ylim(0,350000) +
+  labs(title = "Balance grouped by Duration",
+       x = "Duration", 
+       y = "Balance")
+```
+
+### Duration vs. Loan, Housing
+```{r, echo=FALSE}
+ggplot(bank, aes(x = as.factor(loan), y = duration)) +
+  geom_violin(trim = FALSE) +
+  labs(title = "Violin Plot of Duration by Loan Status",
+       x = "Loan Status (0 = No, 1 = Yes)",
+       y = "Duration")
+
+mean_duration_loan <- aggregate(duration ~ loan, data = bank, mean)
+median_duration_loan <- aggregate(duration ~ loan, data = bank, median)
+combined_duration_loan <- merge(mean_duration_loan, median_duration_loan, by = "loan")
+names(combined_duration_loan) <- c("Loan", "Mean Duration", "Median Duration")
+print(combined_duration_loan)
+
+ggplot(bank, aes(x = as.factor(housing), y = duration)) +
+  geom_violin(trim = FALSE) +
+  labs(title = "Violin Plot of Duration by Housing Status",
+       x = "Loan Status (0 = No, 1 = Yes)",
+       y = "Duration")
+
+mean_duration_housing <- aggregate(duration ~ housing, data = bank, mean)
+median_duration_housing <- aggregate(duration ~ housing, data = bank, median)
+combined_duration_housing <- merge(mean_duration_housing, median_duration_housing, by = "housing")
+names(combined_duration_housing) <- c("housing", "Mean Duration", "Median Duration")
+print(combined_duration_housing)
+```
+
+### Balance vs. Loan, Housing
+```{r, echo=FALSE}
+ggplot(bank, aes(x = as.factor(loan), y = balance)) +
+  geom_violin(trim = FALSE) +
+  labs(title = "Violin Plot of Balance by Loan Status",
+       x = "Loan Status (0 = No, 1 = Yes)",
        y = "Balance")
 
-# Histogram for Campaign
-hist(bank$campaign, main = "Histogram of Campaign Contacts", xlab = "Number of Contacts", xlim = c(0,40))
+mean_balance_loan <- aggregate(balance ~ loan, data = bank, mean)
+median_balance_loan <- aggregate(balance ~ loan, data = bank, median)
+combined_balance_loan <- merge(mean_balance_loan, median_balance_loan, by = "loan")
+names(combined_balance_loan) <- c("Loan", "Mean Balance", "Median Balance")
+print(combined_balance_loan)
+
+ggplot(bank, aes(x = as.factor(housing), y = balance)) +
+  geom_violin(trim = FALSE) +
+  labs(title = "Violin Plot of Balance by Housing Status",
+       x = "Loan Status (0 = No, 1 = Yes)",
+       y = "Balance")
+
+mean_balance_housing <- aggregate(balance ~ housing, data = bank, mean)
+median_balance_housing <- aggregate(balance ~ housing, data = bank, median)
+combined_balance_housing <- merge(mean_balance_housing, median_balance_housing, by = "housing")
+names(combined_balance_housing) <- c("housing", "Mean Balance", "Median Balance")
+print(combined_balance_housing)
+```
+
+### Correlation of Numeric Data
+```{r}
+numerical_data <- bank[sapply(bank, is.numeric)]
+corr_matrix <- cor(numerical_data, use = "complete.obs")
+corrplot(corr_matrix, method = "circle")
+```
+
+### Check pday, poutcome
+```{r}
+summary(bank$pdays)
+sum(is.na(bank$pdays))
+sum(bank$pdays == -1)  # or any other special code
+
+summary(bank$campaign)
+table(bank$poutcome)
 
 ```
 
+```{r}
+model_pdays <- glm(y ~ pdays, data = bank, family = binomial)
+model_campaign <- glm(y ~ campaign, data = bank, family = binomial)
+model_poutcome <- glm(y ~ poutcome, data = bank, family = binomial)
+summary(model_pdays)
+summary(model_campaign)
+summary(model_poutcome)
+```
+
+
 ## Logistic Regression
+
 ```{r}
 # Splitting data into training and test sets
 set.seed(55)
@@ -90,10 +198,18 @@ confusionMatrix <- confusionMatrix(factor(predicted_class), factor(test_data$y))
 print(confusionMatrix)
 
 # ROC and AUC
-library(pROC)
+
 roc_result <- roc(test_data$y, predictions)
 auc(roc_result)
 plot(roc_result)
+
+# Build logistic regression model with two categorical predictors
+model_categorical <- glm(y ~ default + job, data = train_data, family = binomial)
+
+# Summary of the model
+summary(model_categorical)
+
+
 ```
 
 ## Multilevel regression
@@ -114,9 +230,6 @@ model <- glmer(y ~ age + education + marital + balance + loan + housing + (1 | d
 summary(model)
 ```
 
-```{r}
-
-```
 
 ```{r}
 

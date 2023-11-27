@@ -8,7 +8,7 @@ In this project, the goal is to generate an EDA report on a Portuguese banking i
 -   The distribution of different factors: ages vs. balance
 -   Whether a loan affects people's subscription
 
-# Datasets
+## Datasets
 
 Data source: <https://archive.ics.uci.edu/dataset/222/bank+marketing> [Moro et al., 2011] S. Moro, R. Laureano and P. Cortez. Using Data Mining for Bank Direct Marketing: An Application of the CRISP-DM Methodology.
 
@@ -20,15 +20,15 @@ The data for this project comes from a Portuguese retail bank, from May 2008 to 
 
 The data is used for direct marketing campaigns, based on phone calls. In order to determine whether or not a client would subscribe to the bank term deposit, it was often necessary to contact them more than once.
 
-The data is unbalanced, around 12.38% records are related with success(subscription of time deposit).
+The data is unbalanced, around 12.38% records are related with success.
 
 Literature review: <https://www.sciencedirect.com/science/article/pii/S016792361400061X?via=ihub> <https://www.joiv.org/index.php/joiv/article/view/68/48> <https://www.sciencedirect.com/science/article/pii/S0360835222008622>
 
-# Variables Overview
+## Variables Overview
 
 This document outlines the variables used in the dataset. Each variable is described with its type, description, and additional notes where applicable.
 
-## Variable Descriptions
+### Variable Descriptions
 
 | Variable      | Type        | Description                                                                                | Additional Notes                                                                                                                                                      |
 |---------------|-------------|--------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -50,7 +50,7 @@ This document outlines the variables used in the dataset. Each variable is descr
 | `poutcome`    | Categorical | Outcome of the previous marketing campaign                                                 | Options: 'failure', 'nonexistent', 'success'. Contains NA                                                                                                             |
 | `y` (Target)  | Binary      | Has the client subscribed to a term deposit?                                               | \-                                                                                                                                                                    |
 
-## Notes
+### Notes
 
 -   The `duration` variable is a critical predictor for the target variable. However, its value is only known after the call is made and should be omitted for a realistic predictive model.
 -   Binary variables indicate the presence (`1`) or absence (`0`) of a particular attribute.
