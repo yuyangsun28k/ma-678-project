@@ -1,0 +1,86 @@
+---
+title: "eda"
+author: "Yuyang Sun"
+date: "2023-11-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Datasets
+
+### Import Necessary Library
+```{r, echo= FALSE, warning=FALSE}
+library(ggplot2)
+library(lme4)
+library(dplyr)
+library(caret)
+library(corrplot)
+library(pROC)
+```
+
+### Create a column "year" for the Dataset
+```{r,echo=FALSE}
+# Load Data
+bank <- read.csv("bank-full.csv" , sep = ";", header = TRUE)
+
+# Initialize the year column
+bank$year <- 2008
+
+# Loop through the rows and increment the year after each December
+for (i in 2:nrow(bank)) {
+  if (tolower(bank$month[i]) == "jan" && tolower(bank$month[i-1]) == "dec") {
+    bank$year[i] <- bank$year[i-1] + 1
+  } else {
+    bank$year[i] <- bank$year[i-1]
+  }
+}
+```
+
+### Adjust the format of variables
+```{r, echo=FALSE}
+# Convert binary variables to 0 and 1
+bank$default <- ifelse(bank$default == "yes", 1, 0)
+bank$housing <- ifelse(bank$housing == "yes", 1, 0)
+bank$loan <- ifelse(bank$loan == "yes", 1, 0)
+bank$y <- ifelse(bank$y == "yes", 1, 0)
+
+# Convert categorical variables to dummy variables
+bank <- bank %>% 
+  mutate(across(.cols = c(job, marital, education, contact, poutcome), .fns = as.factor)) %>%
+  mutate(across(.cols = c(day, month), .fns = as.factor)) %>%
+  mutate(across(.cols = c(age, balance, duration, campaign, pdays, previous), .fns = as.numeric)) %>%
+  mutate(day = as.numeric(as.factor(day)), month = as.numeric(as.factor(month)))
+```
+
+## EDA
+
+### Logistic Regression
+```{r, echo=FALSE}
+logit_model <- glm(y ~ ., data = bank, family = binomial())
+summary(logit_model)
+exp(coef(logit_model))
+
+```
+
+
+### Multilevel Model
+```{r,echo=FALSE,warning=FALSE}
+bank_multi <- bank
+bank_multi$age_scaled <- scale(bank_multi$age)
+ml_model <- glmer(y ~ age + education + loan + (1 | year), data = bank_multi, family = binomial)
+
+# Check the summary of the model
+summary(ml_model)
+```
+
+```{r}
+ml_model <- glmer(y ~ age_scaled + education + loan + housing + marital + job + (1 | year), data = bank_multi, family = binomial)
+# Check the summary of the model
+summary(ml_model)
+# Displaying the variance-covariance matrix of the fixed effects
+#vcov(ml_model)
+```
+
