@@ -1,0 +1,333 @@
+---
+title: "scarch"
+author: "Yuyang Sun"
+date: "2023-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Library
+```{r, echo= FALSE}
+library(ggplot2)
+library(lme4)
+library(dplyr)
+library(caret)
+library(corrplot)
+library(pROC)
+library(viridis)
+library(gplots)
+```
+
+## Load Data
+### Add a year column for Multilevel Model
+```{r}
+# Load Data
+bank <- read.csv("bank-full.csv" , sep = ";", header = TRUE)
+
+# Initialize the year column
+bank$year <- 2008
+
+# Loop through the rows and increment the year after each December
+for (i in 2:nrow(bank)) {
+  if (tolower(bank$month[i]) == "jan" && tolower(bank$month[i-1]) == "dec") {
+    bank$year[i] <- bank$year[i-1] + 1
+  } else {
+    bank$year[i] <- bank$year[i-1]
+  }
+}
+
+# Check the result
+head(bank)
+table(bank$year)
+```
+
+### Adjust the format of variables
+```{r, echo=FALSE}
+# Convert binary variables to 0 and 1
+bank$default <- ifelse(bank$default == "yes", 1, 0)
+bank$housing <- ifelse(bank$housing == "yes", 1, 0)
+bank$loan <- ifelse(bank$loan == "yes", 1, 0)
+bank$y <- ifelse(bank$y == "yes", 1, 0)
+
+# Convert categorical variables to dummy variables
+bank <- bank %>% 
+  mutate(across(.cols = c(job, marital, education, contact, poutcome), .fns = as.factor)) %>%
+  mutate(across(.cols = c(day, month), .fns = as.factor)) %>%
+  mutate(across(.cols = c(age, balance, duration, campaign, pdays, previous), .fns = as.numeric)) %>%
+  mutate(day = as.numeric(as.factor(day)), month = as.numeric(as.factor(month)))
+
+head(bank)
+```
+
+## Initital Setup
+
+### Check NA's
+
+```{r, echo=FALSE}
+library(ggplot2)
+library(reshape2)
+
+# Melting the data
+bank_melted <- melt(is.na(bank), id.vars = NULL)
+
+# Creating a heatmap of NA values
+ggplot(bank_melted, aes(Var2, Var1)) +
+  geom_raster(aes(fill = value)) +
+  scale_fill_manual(values = c("TRUE" = "red", "FALSE" = "grey")) +
+  theme_minimal() +
+  labs(x = "Variables", y = "Observations", title = "Heatmap of Missing Values") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+```{r, echo=FALSE}
+# Number of NA values for each variable
+library(ggplot2)
+library(dplyr)
+
+# Bin the age data
+bank_binned <- bank %>%
+  mutate(age_bin = cut(age, breaks = seq(min(age), max(age), by = 5), include.lowest = TRUE)) %>%
+  group_by(age_bin) %>%
+  summarize(average_balance = mean(balance, na.rm = TRUE))
+
+# Create the bar plot
+ggplot(bank_binned, aes(x = age_bin, y = average_balance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+  labs(title = "Average Balance Grouped by Age Bins",
+       x = "Age Bins",
+       y = "Average Balance") +
+  theme(plot.title = element_text(hjust = 0.5)) # Center the title
+
+```
+
+#### Cut the age into subgroups
+
+```{r, echo=FALSE}
+
+```
+
+### Balance vs. Duration
+
+```{r,warning=FALSE, echo=FALSE}
+library(ggplot2)
+library(dplyr)
+
+# Bin the duration data and calculate the average balance for each bin
+bank_binned <- bank %>%
+  mutate(duration_bin = cut(duration, breaks = seq(0, max(duration, na.rm = TRUE), by = 180), include.lowest = TRUE)) %>%
+  group_by(duration_bin) %>%
+  summarize(average_balance = mean(balance, na.rm = TRUE))
+
+# Bar plot of the average balance for each duration bin
+ggplot(bank_binned, aes(x = duration_bin, y = average_balance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+  labs(title = "Average Balance Grouped by Duration Bins",
+       x = "Duration Bins",
+       y = "Average Balance") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 45, vjust = 0.5))
+
+```
+
+### Duration vs. Loan, Housing
+```{r, echo=FALSE}
+ggplot(bank, aes(x = as.factor(loan), y = duration)) +
+  geom_violin(trim = FALSE) +
+  labs(title = "Violin Plot of Duration by Loan Status",
+       x = "Loan Status (0 = No, 1 = Yes)",
+       y = "Duration")
+
+mean_duration_loan <- aggregate(duration ~ loan, data = bank, mean)
+median_duration_loan <- aggregate(duration ~ loan, data = bank, median)
+combined_duration_loan <- merge(mean_duration_loan, median_duration_loan, by = "loan")
+names(combined_duration_loan) <- c("Loan", "Mean Duration", "Median Duration")
+print(combined_duration_loan)
+
+ggplot(bank, aes(x = as.factor(housing), y = duration)) +
+  geom_violin(trim = FALSE) +
+  labs(title = "Violin Plot of Duration by Housing Status",
+       x = "Loan Status (0 = No, 1 = Yes)",
+       y = "Duration")
+
+mean_duration_housing <- aggregate(duration ~ housing, data = bank, mean)
+median_duration_housing <- aggregate(duration ~ housing, data = bank, median)
+combined_duration_housing <- merge(mean_duration_housing, median_duration_housing, by = "housing")
+names(combined_duration_housing) <- c("housing", "Mean Duration", "Median Duration")
+print(combined_duration_housing)
+```
+
+### Balance vs. Loan, Housing
+```{r, echo=FALSE}
+ggplot(bank, aes(x = as.factor(loan), y = balance)) +
+  geom_violin(trim = FALSE) +
+  labs(title = "Violin Plot of Balance by Loan Status",
+       x = "Loan Status (0 = No, 1 = Yes)",
+       y = "Balance")
+
+mean_balance_loan <- aggregate(balance ~ loan, data = bank, mean)
+median_balance_loan <- aggregate(balance ~ loan, data = bank, median)
+combined_balance_loan <- merge(mean_balance_loan, median_balance_loan, by = "loan")
+names(combined_balance_loan) <- c("Loan", "Mean Balance", "Median Balance")
+print(combined_balance_loan)
+
+ggplot(bank, aes(x = as.factor(housing), y = balance)) +
+  geom_violin(trim = FALSE) +
+  labs(title = "Violin Plot of Balance by Housing Status",
+       x = "Loan Status (0 = No, 1 = Yes)",
+       y = "Balance")
+
+mean_balance_housing <- aggregate(balance ~ housing, data = bank, mean)
+median_balance_housing <- aggregate(balance ~ housing, data = bank, median)
+combined_balance_housing <- merge(mean_balance_housing, median_balance_housing, by = "housing")
+names(combined_balance_housing) <- c("housing", "Mean Balance", "Median Balance")
+print(combined_balance_housing)
+```
+
+### Correlation of Numeric Data
+```{r warning=FALSE}
+# Assuming you have already calculated the correlation matrix 'corr_matrix'
+numerical_data <- bank[sapply(bank, is.numeric)]
+corr_matrix <- cor(numerical_data, use = "complete.obs")
+
+# Set the size of the plotting device (adjust width and height as needed)
+options(repr.plot.width = 8, repr.plot.height = 8)
+
+# Define a custom color palette (for example, using the "cividis" color palette)
+custom_palette <- cividis(256, alpha = 1, begin = 0, end = 1, direction = 1)
+
+# Create a smaller heatmap with adjusted settings and no dendrograms
+heatmap.2(corr_matrix,
+          col = custom_palette,
+          main = "Correlation Heatmap",  # Remove the main title
+          symm = TRUE,
+          trace = "none",  # Hide row and column labels
+          key = TRUE,      # Display a color legend
+          key.title = "Frequency",
+          key.title.cex = 0.2,  # Adjust the title font size
+          key.subtitle = "Color Scale",
+          key.subtitle.cex = 0.3,  # Adjust the subtitle font size
+          cex.legend = 0.5,        # Adjust the size of the color legend key
+          cex.axis = 0.25,         # Adjust axis label font size
+          cex.main = 0.4,          # Adjust main title font size
+          cex.lab = 0.25,          # Adjust axis labels font size
+          lhei = c(0.02, 0.05),    # Adjust smaller row and column height
+          lwid = c(0.02, 0.05),    # Adjust smaller row and column width
+          cellnote = round(corr_matrix, 2),  # Display correlation values
+          notecol = "white",       # Set the color of the correlation values
+          notecex = 0.8,          # Adjust the correlation value font size
+          symbreaks = FALSE,
+          dendrogram = "none",
+          )
+
+```
+
+### Check pday, poutcome
+```{r}
+summary(bank$pdays)
+sum(is.na(bank$pdays))
+sum(bank$pdays == -1)  # or any other special code
+
+summary(bank$campaign)
+table(bank$poutcome)
+
+```
+
+```{r}
+model_pdays <- glm(y ~ pdays, data = bank, family = binomial)
+model_campaign <- glm(y ~ campaign, data = bank, family = binomial)
+model_poutcome <- glm(y ~ poutcome, data = bank, family = binomial)
+summary(model_pdays)
+summary(model_campaign)
+summary(model_poutcome)
+```
+### Multicollinearity Check
+
+```{r}
+# Assuming you have a model built, e.g., logistic regression
+model <- glm(y ~ ., data = bank, family = binomial)
+
+# Calculate VIF
+library(car)
+vif(model)
+# Values of VIF > 5 or 10 indicate high multicollinearity
+
+```
+### Interaction between job and education
+
+```{r}
+# Interaction plot for Job and Education
+ggplot(bank, aes(x = job, fill = education)) +
+  geom_bar(position = "dodge") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Interaction between Job and Education")
+
+```
+
+
+## Logistic Regression
+
+```{r}
+# Splitting data into training and test sets
+set.seed(55)
+training_rows <- createDataPartition(bank$y, p = 0.7, list = FALSE)
+train_data <- bank[training_rows, ]
+test_data <- bank[-training_rows, ]
+
+# Build logistic regression model
+model <- glm(y ~ ., data = train_data, family = binomial)
+summary(model)
+
+# Make predictions on the test set
+predictions <- predict(model, newdata = test_data, type = "response")
+
+# Convert predictions to binary format
+predicted_class <- ifelse(predictions > 0.5, 1, 0)
+
+# Confusion matrix and accuracy
+confusionMatrix <- confusionMatrix(factor(predicted_class), factor(test_data$y))
+print(confusionMatrix)
+
+# ROC and AUC
+
+roc_result <- roc(test_data$y, predictions)
+auc(roc_result)
+plot(roc_result)
+
+# Build logistic regression model with two categorical predictors
+model_categorical <- glm(y ~ default + job, data = train_data, family = binomial)
+
+# Summary of the model
+summary(model_categorical)
+
+
+```
+
+## Multilevel regression
+```{r}
+# Convert categorical variables to factors if they are not already
+bank$education <- as.factor(bank$education)
+bank$marital <- as.factor(bank$marital)
+bank$loan <- as.factor(bank$loan)
+bank$housing <- as.factor(bank$housing)
+
+# Build the model
+# Replace 'cluster_var' with your actual clustering variable
+model <- glmer(y ~ age + education + marital + balance + loan + housing + (1 | year), 
+               data = bank, 
+               family = binomial)
+
+# View the model summary
+summary(model)
+```
+
+
+```{r}
+
+```

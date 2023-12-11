@@ -1,0 +1,161 @@
+---
+title: "eda"
+author: "Yuyang Sun"
+date: "2023-11-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Datasets
+
+### Import Necessary Library
+```{r, echo= FALSE, warning=FALSE}
+library(ggplot2)
+library(lme4)
+library(dplyr)
+library(caret)
+library(corrplot)
+library(pROC)
+library(tidyr)
+library(broom)
+```
+
+### Create a column "year" for the Dataset
+```{r,echo=FALSE}
+# Load Data
+bank <- read.csv("bank-full.csv" , sep = ";", header = TRUE)
+
+# Initialize the year column
+bank$year <- 2008
+
+# Loop through the rows and increment the year after each December
+for (i in 2:nrow(bank)) {
+  if (tolower(bank$month[i]) == "jan" && tolower(bank$month[i-1]) == "dec") {
+    bank$year[i] <- bank$year[i-1] + 1
+  } else {
+    bank$year[i] <- bank$year[i-1]
+  }
+}
+```
+
+### Adjust the format of variables
+```{r, echo=FALSE}
+# Convert binary variables to 0 and 1
+bank$default <- ifelse(bank$default == "yes", 1, 0)
+bank$housing <- ifelse(bank$housing == "yes", 1, 0)
+bank$loan <- ifelse(bank$loan == "yes", 1, 0)
+bank$y <- ifelse(bank$y == "yes", 1, 0)
+
+# Convert categorical variables to dummy variables
+bank <- bank %>% 
+  mutate(across(.cols = c(job, marital, education, contact, poutcome), .fns = as.factor)) %>%
+  mutate(across(.cols = c(day, month), .fns = as.factor)) %>%
+  mutate(across(.cols = c(age, balance, duration, campaign, pdays, previous), .fns = as.numeric)) %>%
+  mutate(day = as.numeric(as.factor(day)), month = as.numeric(as.factor(month)))
+```
+
+## EDA
+
+### Logistic Regression
+
+```{r}
+# Fit the model
+logit_model <- glm(y ~ ., data = bank, family = binomial())
+
+# Getting model coefficients
+tidy_model <- tidy(logit_model)
+# Predicting probabilities
+probabilities <- predict(logit_model, type = "response")
+
+# ROC curve
+roc_obj <- roc(bank$y, probabilities)
+
+# Plot
+plot(roc_obj, main = "ROC Curve")
+
+# Residuals vs Fitted
+plot(logit_model$fitted.values, residuals(logit_model, type = "deviance"))
+abline(h = 0, col = "red")
+
+```
+
+```{r, echo=FALSE}
+logit_model <- glm(y ~ ., data = bank, family = binomial())
+current_model <- step(logit_model, direction = "backward")
+
+max_iterations <- 20  # Set a maximum number of iterations
+iteration_count <- 0    # Initialize an iteration counter
+
+# Loop until all variables are significant or maximum iterations reached
+while(iteration_count < max_iterations) {
+    iteration_count <- iteration_count + 1
+
+    # Get the summary
+    model_summary <- summary(current_model)
+
+    # Find the highest p-value excluding the intercept
+    p_values <- coef(model_summary)[, "Pr(>|z|)"]
+    variable_names <- names(p_values)
+    p_values_no_intercept <- p_values[variable_names != "(Intercept)"]
+    max_p_value <- max(p_values_no_intercept, na.rm = TRUE)
+
+    # Check if the highest p-value is significant
+    if (max_p_value < 0.05) {
+        break
+    }
+
+    # Get the name of the variable with the highest p-value
+    insignificant_variable <- names(which.max(p_values_no_intercept))
+
+    # Ensure not to remove the Intercept
+    if(insignificant_variable != "(Intercept)") {
+        # Log progress
+        print(paste("Removing variable:", insignificant_variable, "with p-value:", max_p_value))
+
+        # Directly update the formula to remove the insignificant variable
+        current_formula <- formula(current_model)
+        updated_formula <- as.formula(paste("y ~", paste(setdiff(all.vars(current_formula)[-1], insignificant_variable), collapse = " + ")))
+        current_model <- glm(updated_formula, data = bank, family = binomial())
+
+        # Check the model summary
+        print(paste("Model summary after removing", insignificant_variable, ":"))
+        print(summary(current_model))
+    }
+}
+
+# Final model summary
+print("Final model summary:")
+print(summary(current_model))
+
+```
+
+
+### Multilevel Model
+
+
+```{r,echo=FALSE,warning=FALSE}
+bank_multi <- bank
+bank_multi$age_scaled <- scale(bank_multi$age)
+#no pooling
+np_model <- glm(y ~ age + education + loan + year, data = bank_multi, family = binomial)
+#complete pooling
+cp_model <- glm(y ~ age + education + loan, data = bank_multi, family = binomial)
+#partial pooling
+pp_model <- glmer(y ~ age + education + loan + (1 | year), data = bank_multi, family = binomial)
+# Check the summary of the model
+summary(np_model)
+summary(cp_model)
+summary(pp_model)
+```
+
+```{r}
+pp_model2 <- glmer(y ~ age_scaled + education + loan + housing + marital + job + (1 | year), data = bank_multi, family = binomial)
+# Check the summary of the model
+summary(pp_model2)
+# Displaying the variance-covariance matrix of the fixed effects
+#vcov(ml_model)
+```
+
